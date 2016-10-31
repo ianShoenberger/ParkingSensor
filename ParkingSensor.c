@@ -2,6 +2,8 @@
 #include <stdio.h>
 
 int main(int argc, char *argv[]) {
-	printf("Welcome to the QNX Momentics IDE\n");
+	printf("Running the Parking Sensor Application\n");
+
+
 	return EXIT_SUCCESS;
 }
