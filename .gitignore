@@ -30,4 +30,4 @@
 
 # Debug files
 *.dSYM/
-*.su
+*.su .cproject .project .qnx_internal.mk x86/

@@ -5,22 +5,13 @@
  *      Author: is3849
  */
 
-#define PORT_LENGTH 1
-#define DATA_ADDRESS 0x288
-//#define STATUS_ADDRESS 0x379
-//#define CTRL_ADDRESS 0x37a
-/* bit 2 = printer initialization (high to initialize) */
-/* bit 4 = hardware IRQ (high to enable) */
-#define INIT_BIT 0x04
-//#define INTR_BIT 0x10
-#define PORTA_CTRL (DATA_ADDRESS+11)
-//#define PARALLEL_IRQ 0x07 /* parallel port’s interrupt vector */
- uintptr_t data_handle;
- uintptr_t status_handle;
- uintptr_t ctrl_handle;
+#include "DIOConfiguration.h"
 
-void config_io()
+int config_io(void)
 {
+	int privity_err;
+	int dio_direction;
+
 	/* Give this thread root permissions to access */
 	/* the hardware */
 	privity_err = ThreadCtl( _NTO_TCTL_IO, NULL );
@@ -30,18 +21,50 @@ void config_io()
 		return -1;
 	}
 	/* Get a handle to the parallel port's control register */
-	ctrl_handle = mmap_device_io( PORT_LENGTH, PORTA_CTRL );
-	/* Initialize the parallel port */
-	out8( ctrl_handle,  INIT_BIT);
+	ctrl_handle = mmap_device_io( PORT_LENGTH, CTRL_ADDRESS );
+	/* Initialize port A to be output */
+	dio_direction = in8( ctrl_handle );
+	out8( ctrl_handle,  dio_direction & ~PA_DIR_BIT);
+	/* Initialize port B to be an input */
+	dio_direction = in8( ctrl_handle );
+	out8( ctrl_handle, dio_direction | PB_DIR_BIT);
 
-	/* Get a handle to the parallel port's Status Register */
-	// don't know what this is yet...
-	// status_handle = mmap_device_io( PORT_LENGTH, STATUS_ADDRESS );
+
 	/* Get a handle to the parallel port's Data Register */
-	data_handle = mmap_device_io( PORT_LENGTH, DATA_ADDRESS );
+	pa_data_handle = mmap_device_io( PORT_LENGTH, PA_DATA_ADDRESS );
+	pb_data_handle = mmap_device_io( PORT_LENGTH, PB_DATA_ADDRESS );
 
-	/* eventually you’ll need to: */
+	return 1;
 
-	/* Enable interrupts on the parallel port */
-	//out8( ctrl_handle, INTR_BIT );
+}
+
+void output_pwm(void)
+{
+	int count;
+
+	for ( count = 0; count < MAX_COUNT; count++ )
+	{
+		/* Output a byte of lows to the data lines */
+		out8( pb_data_handle, LOW );
+		printf("low\n");
+		sleep( 1 );
+
+		/* Output a byte of highs to the data lines */
+		out8( pb_data_handle, HIGH );
+		printf("high\n");
+		sleep( 1 );
+	}
+}
+
+void input_pwm(void)
+{
+	while(1)
+	{
+		while((in8(pb_data_handle) & PB0_BIT) != PB0_BIT){}
+		printf("input has gone high\n");
+
+		while((in8(pb_data_handle) & PB0_BIT) != 0){}
+		printf("input has gone low\n");
+	}
+
 }
