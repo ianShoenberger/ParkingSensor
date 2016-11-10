@@ -45,12 +45,12 @@ void output_pwm(void)
 	for ( count = 0; count < MAX_COUNT; count++ )
 	{
 		/* Output a byte of lows to the data lines */
-		out8( pb_data_handle, LOW );
+		out8( pa_data_handle, LOW );
 		printf("low\n");
 		sleep( 1 );
 
 		/* Output a byte of highs to the data lines */
-		out8( pb_data_handle, HIGH );
+		out8( pa_data_handle, HIGH );
 		printf("high\n");
 		sleep( 1 );
 	}
