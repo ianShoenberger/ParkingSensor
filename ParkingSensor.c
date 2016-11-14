@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <hw/inout.h>
+#include <pthread.h>
 #include "DIOConfiguration.h"
 
 #define PING_DUTY_NANOSECONDS (10100)
@@ -11,19 +12,23 @@
 
 int clock_speed;
 int ping_duty_cycle;
+int max_reading = 0;
+int min_reading = 0;
 
 void ping(void);
 int read_distance(void);
 int convert_sensor_reading_to_inches(long sensor_reading);
+void* sensor_read(void* args);
 
 int main(int argc, char *argv[]) {
 	int config_status = 0;
-	int distance_reading;
-	int max_reading = 0;
-	int min_reading = 0;
-	struct timespec wait_time;
-	wait_time.tv_sec = 0;
-	wait_time.tv_nsec = 82000000;
+
+	struct _clockperiod new_resolution;
+	char user_input[1];
+	new_resolution.fract = 0;
+	new_resolution.nsec = 10000;
+
+	ClockPeriod_r(CLOCK_REALTIME, &new_resolution, NULL, 0);
 
 	printf("Running the Parking Sensor Application\n");
 
@@ -31,25 +36,14 @@ int main(int argc, char *argv[]) {
 	if ( config_status != -1 )
 	{
 		printf("Successfully configured digital IO\n");
-		while(1)
-		{
-			ping();
-			distance_reading = read_distance();
-			if(distance_reading == -1) {
-				printf("*\n");
-			} else {
-				printf("%d\n", distance_reading);
+		printf("Enter any key to begin sensor reads\n");
+		gets(user_input);
+		pthread_create(NULL, NULL, &sensor_read, NULL);
+		gets(user_input);
 
-				if(distance_reading > max_reading) {
-					max_reading = distance_reading;
-				} else if(distance_reading <= min_reading) {
-					min_reading = distance_reading;
-				}
-			}
+		printf("The maximum is: %d\n", max_reading);
+		printf("The minimum is: %d\n", min_reading);
 
-			nanosleep(&wait_time, NULL);
-			//sleep(1);
-		}
 	}
 	else
 	{
@@ -57,6 +51,34 @@ int main(int argc, char *argv[]) {
 	}
 
 	return EXIT_SUCCESS;
+}
+
+void* sensor_read(void* arg)
+{
+	int distance_reading;
+	struct timespec wait_time;
+	wait_time.tv_sec = 0;
+	wait_time.tv_nsec = 82000000;
+
+	while(1)
+	{
+		ping();
+		distance_reading = read_distance();
+		if(distance_reading == -1) {
+			printf("*\n");
+		} else {
+			printf("%d\n", distance_reading);
+
+			if(distance_reading > max_reading) {
+				max_reading = distance_reading;
+			} else if(distance_reading <= min_reading) {
+				min_reading = distance_reading;
+			}
+		}
+
+		nanosleep(&wait_time, NULL);
+		//sleep(1);
+	}
 }
 
 void ping(void)
@@ -89,17 +111,17 @@ int read_distance(void)
 
 	// wait for the input to go up to 1
 	while((in8(pb_data_handle) & PB0_BIT) != PB0_BIT){}
-	clock_gettime(CLOCK_MONOTONIC, &start_time);
-	clock_gettime(CLOCK_MONOTONIC, &curr_time);
+	clock_gettime(CLOCK_REALTIME, &start_time);
+	clock_gettime(CLOCK_REALTIME, &curr_time);
 
 	while((in8(pb_data_handle) & PB0_BIT) != 0){
 		// check to see if we have waited too long
-		/*if((curr_time.tv_nsec - start_time.tv_nsec) > SENSOR_READING_UPPER_LIMIT) {
+		if((curr_time.tv_nsec - start_time.tv_nsec) > SENSOR_READING_UPPER_LIMIT) {
 			return -1;
 		}
-		clock_gettime(CLOCK_MONOTONIC, &curr_time);*/
+		clock_gettime(CLOCK_REALTIME, &curr_time);
 	}
-	clock_gettime(CLOCK_MONOTONIC, &end_time);
+	clock_gettime(CLOCK_REALTIME, &end_time);
 
 	sensor_read_time = end_time.tv_nsec - start_time.tv_nsec;
 	//printf("%lu - time interval\n", sensor_read_time);
@@ -112,5 +134,7 @@ int convert_sensor_reading_to_inches(long sensor_reading) {
 	// convert to ms from ns
 	float ms_sensor_reading = (float)sensor_reading / 1000000.00;
 	float result = (10.80*ms_sensor_reading) / 2.00;
+	if(result < 0)
+		result = -1;
 	return ceil(result);
 }
